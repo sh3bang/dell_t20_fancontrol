@@ -16,6 +16,7 @@ __IO uint16_t fan_test_speed = 0;
 __IO uint16_t fake_fan_speed = 0;
 
 int16_t fan_alive_timeout = 8;
+__IO int16_t fan_10_alive = 8;
 __IO int16_t fan_11_alive = 8;
 __IO int16_t fan_12_alive = 8;
 __IO int16_t fan_13_alive = 8;
@@ -70,6 +71,10 @@ void EXTI15_10_IRQHandler(void)
     uint32_t p = EXTI->PR;
     EXTI->PR = p; // reset, Reference manual "10.3.6 Pending register (EXTI_PR)"
 
+    if (p & (1 << 10)) { // EXTI Line 10
+            fan_10_alive = fan_alive_timeout;
+    }
+
     if (p & (1 << 11)) { // EXTI Line 11
             fan_11_alive = fan_alive_timeout;
     }
@@ -94,6 +99,9 @@ void EXTI15_10_IRQHandler(void)
 
 uint8_t check_fan_alive()
 {
+    if(fan_10_alive){
+        fan_10_alive--;
+    }
     if(fan_11_alive){
         fan_11_alive--;
     }
@@ -110,7 +118,7 @@ uint8_t check_fan_alive()
         fan_15_alive--;
     }
 
-    if(fan_11_alive && fan_12_alive && fan_13_alive && fan_14_alive && fan_15_alive){
+    if(fan_10_alive && fan_11_alive && fan_12_alive && fan_13_alive && fan_14_alive && fan_15_alive){
         return (uint8_t)0;
     } else {
         return (uint8_t)1;
@@ -580,7 +588,7 @@ void config_fan_alive_detection(void)
     /* Configure the GPIO Pins. */
     GPIO_InitTypeDef GPIO_InitStructure;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11 | GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_11 | GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
     /* Fan fail LED */
@@ -589,6 +597,7 @@ void config_fan_alive_detection(void)
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource10);
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource11);
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource12);
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource13);
@@ -599,7 +608,7 @@ void config_fan_alive_detection(void)
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_InitStructure.EXTI_Line = EXTI_Line11 | EXTI_Line12 | EXTI_Line13 | EXTI_Line14 | EXTI_Line15;
+    EXTI_InitStructure.EXTI_Line = EXTI_Line10 | EXTI_Line11 | EXTI_Line12 | EXTI_Line13 | EXTI_Line14 | EXTI_Line15;
     EXTI_Init(&EXTI_InitStructure);
 
     NVIC_InitTypeDef NVIC_InitStructure;
@@ -669,7 +678,7 @@ int main(void)
         /* PB0, PB1, PA6, PA7 */
         config_fan_generator(100);
 
-        /* PB5 (fail LED), PB11,  PB12, PB13, PB14, PB15 */
+        /* PB5 (fail LED), PB10, PB11,  PB12, PB13, PB14, PB15 */
         config_fan_alive_detection();
 
         read_from_flash();
